@@ -15,15 +15,15 @@ const books = [
 
 const users = [];
 
-function authenticate(req, res, next) {
+async function authenticate(req, res, next) {
   const authHeader = req.headers['authorization'];
   const token = authHeader?.split(' ')[1];
 
   if (!token) return res.status(401).json({ message: 'Token required' });
 
   try {
-    // TODO: Verify JWT
-
+    const payload = await verifyJWT(token);
+    req.user = payload;
     next();
   } catch {
     res.status(403).json({ message: 'Invalid token' });
@@ -48,9 +48,9 @@ app.post('/register', async (req, res) => {
   if (existingUser)
     return res.status(409).json({ message: 'User already exists' });
 
-  // TODO: Hash password
+  const { salt, hashedPassword } = hashPassword(password);
 
-  users.push({ username, password: hashedPassword, role });
+  users.push({ username, password: hashedPassword, salt, role });
 
   res.status(201).json({ message: 'User registered' });
 });
@@ -58,10 +58,14 @@ app.post('/register', async (req, res) => {
 app.post('/login', async (req, res) => {
   const { username, password } = req.body;
   const user = users.find((u) => u.username === username);
+  
+  if (!user) return res.status(401).json({ message: 'Invalid credentials' });
 
-  // TODO: Verify password
+  const isValid = verifyPassword(password, user.salt, user.password);
+  
+  if (!isValid) return res.status(401).json({ message: 'Invalid credentials' });
 
-  // TODO: Sign JWT
+  const token = await signJWT({ username: user.username, role: user.role });
 
   res.json({ token });
 });
